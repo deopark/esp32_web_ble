@@ -1,0 +1,264 @@
+
+<!--
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp32-web-bluetooth/
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+
+
+<!--
+    Liver Server를 이용하지 않아도 실행된다. ???
+
+    favicon과 style css를 적용한 page
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Web BLE App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta character="UTF-8">
+    <!-- favicon과 css 적용하기 -->
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div class="topnav">
+        <h1>ESP32 Web BLE Application</h1>
+    </div>
+
+    <div class="content">
+        <!-- BLE 연결 관리----------------------------->
+        <div class="card-grid">
+            <div class="card">
+                <p>
+                    <button id="connectBleButton" class="connectButton">Connect to BLE Device</button>
+                    <button id="disconnectBleButton" class="disconnectButton">Disconnect BLE Device</button>
+                </p>
+                <!-- BLE 연결 상태표시 ---------------->
+                <p class="grey-label">BLE state: 
+                    <strong><span id="bleState" style="color:#d13a30;">Disconnected</span>
+                    </strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- ESP32 기기 읽기 및 제어 ------------------------>
+        <div class="card-grid">
+                <!-- ESP32에서 SensorCharateristic에 쓴 count value 읽기 -->
+                <div class="card">
+                    <h2>Fetched Value</h2>
+                    <p class="reading"><span id="valueContainer">NaN</span></p>
+                    <p class="grey-label">Last reading: <span id="timestamp"></span></p>
+                </div>
+                
+                <div class="card">
+                <!-- ESP32 장치의 GPIO를 제어하기 위한 Button Control과 마지막 전송 값 -->
+                    <h2>Control GPIO 2</h2>
+                    <button id="onButton" class="onButton">ON</button>
+                    <button id="offButton" class="offButton">OFF</button>
+                    <p class="grey-label">Last value sent: <span id="valueSent"></span></p>
+                </div>
+        </div>
+    </div> <!-- div class="content"-->
+
+    <div class="footer">
+    <!-- 광고 -->
+        <p><a href="https://randomnerdtutorials.com/">Created by RandomNerdTutorials.com</a></p>
+        <p><a href="https://RandomNerdTutorials.com/esp32-web-bluetooth/">Read the full project here.</a></p>
+    </div>
+
+</body>
+
+
+<script>
+    // DOM(Document Object Model) Elements
+    const connectButton = document.getElementById('connectBleButton');
+    const disconnectButton = document.getElementById('disconnectBleButton');
+    const onButton = document.getElementById('onButton');
+    const offButton = document.getElementById('offButton');
+    const retrievedValue = document.getElementById('valueContainer');
+    const latestValueSent = document.getElementById('valueSent');
+    const bleStateContainer = document.getElementById('bleState');
+    const timestampContainer = document.getElementById('timestamp');
+
+    // Define BLE Device Specs
+    // ESP32를 Server로 설정했기 때문에 ESP32에 upload된 code의 값과 동일해야 한다.
+    var deviceName ='Web BLE Led Control';
+    var bleService = '53948b5e-43c8-4c3e-9050-f02d21b101c3';
+    var ledCharacteristic = '369f2822-a8ab-46fe-bcef-5c54de07cd67';
+    var sensorCharacteristic= '86d857d5-700d-402d-b19c-25609260503f';
+
+    //Global Variables to Handle Bluetooth
+    var bleServer;
+    var bleServiceFound;
+    var sensorCharacteristicFound;
+
+    // Connect Button (search for BLE Devices only if BLE is available)
+    connectButton.addEventListener('click', (event) => {
+        if (isWebBluetoothEnabled()){
+            connectToDevice();
+        }
+    });
+
+    // Disconnect Button
+    disconnectButton.addEventListener('click', disconnectDevice);
+
+    // Write to the ESP32 LED Characteristic
+    onButton.addEventListener('click', () => writeOnCharacteristic(1));
+    offButton.addEventListener('click', () => writeOnCharacteristic(0));
+
+    // Check if BLE is available in your Browser
+    // navigatot.bluetooth: Web BLE가 활성화 되어 있는지
+    function isWebBluetoothEnabled() {
+        if (!navigator.bluetooth) {
+            console.log("Web Bluetooth API is not available in this browser!");
+            bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
+            return false
+        }
+        console.log('Web Bluetooth API supported in this browser.');
+        return true
+    }
+
+    // Connect to BLE Device and Enable Notifications
+    // 위에서 정의한 name과 service를 가진 BLE 장치를 검색
+    // filter를 정의할 수도 있고 추가하지 않고 모든 BLE 기기를 반환하도록 설정할 수 있다.
+    function connectToDevice(){
+        console.log('Initializing Bluetooth...');
+        navigator.bluetooth.requestDevice({
+            filters: [{name: deviceName}],
+            optionalServices: [bleService]
+        })
+        // 연결되면 HTML에 표시하고 연결이 끊어질 경우를 대비하여 EventListener를 추가한다.
+        .then(device => {
+            console.log('Device Selected:', device.name);
+            bleStateContainer.innerHTML = 'Connected to device ' + device.name;
+            bleStateContainer.style.color = "#24af37";
+            device.addEventListener('gattservicedisconnected', onDisconnected);
+            return device.gatt.connect();
+        })
+        // ESP32에서 GATT Server를 가져올 수 있다.
+        .then(gattServer =>{
+            bleServer = gattServer;
+            console.log("Connected to GATT Server");
+            console.log("Requested BLE Service UUID: ", bleService);
+            return bleServer.getPrimaryService(bleService);
+        })
+        // ESP32의 Service 가져오기(위에서 정의한 UUID를 이용하여 가져온다.)
+        .then(service => {
+            bleServiceFound = service;
+            console.log("Service discovered:", service.uuid);
+            return service.getCharacteristic(sensorCharacteristic);
+        })
+        // 가져온 Service의 Charateristic 가져오기
+        // Characteristic에 eventListener 추가(값이 변경될 때 발생하는 일 처리)
+        // notify 시작
+        // 마지막에 기록된 값 return
+        .then(characteristic => {
+            console.log("Characteristic discovered:", characteristic.uuid);
+            sensorCharacteristicFound = characteristic;
+            characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
+            characteristic.startNotifications();
+            console.log("Notifications Started.");
+            console.log(characteristic.properties.notify); // 알림 설정 확인 
+            return characteristic.readValue();
+        })
+        // Characteristic에서 읽은 값을 HTML에 표시
+        .then(value => {
+            console.log("Read value: ", value);
+            const decodedValue = new TextDecoder().decode(value);
+            console.log("Decoded value: ", decodedValue);
+            retrievedValue.innerHTML = decodedValue;
+        })
+        .catch(error => {
+            console.log('Error: ', error);
+        })
+    }
+
+    function onDisconnected(event){
+        console.log('Device Disconnected:', event.target.device.name);
+        bleStateContainer.innerHTML = "Device disconnected";
+        bleStateContainer.style.color = "#d13a30";
+
+        connectToDevice();
+    }
+
+    // Sensor Characteristic의 값이 변경되면 호출
+    function handleCharacteristicChange(event){
+        const newValueReceived = new TextDecoder().decode(event.target.value);
+        console.log("Characteristic value changed: ", newValueReceived);
+        retrievedValue.innerHTML = newValueReceived;
+        timestampContainer.innerHTML = getDateTime();
+    }
+
+    // ON / OFF Buttone에 의해 호출되는 함수
+    function writeOnCharacteristic(value){
+
+        if (bleServer && bleServer.connected) {
+            bleServiceFound.getCharacteristic(ledCharacteristic)
+            // Characteristic에 기록
+            .then(characteristic => {
+                console.log("Found the LED characteristic: ", characteristic.uuid);
+                const data = new Uint8Array([value]);
+                return characteristic.writeValue(data);
+            })
+            // HTML에 표시
+            .then(() => {
+                latestValueSent.innerHTML = value;
+                console.log("Value written to LEDcharacteristic:", value);
+            })
+            .catch(error => {
+                console.error("Error writing to the LED characteristic: ", error);
+            });
+        } else {// Server가 없거나 연결이 끊어졌다.
+            console.error ("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+    }
+
+    function disconnectDevice() {
+        console.log("Disconnect Device.");
+        if (bleServer && bleServer.connected) {
+            if (sensorCharacteristicFound) {
+                sensorCharacteristicFound.stopNotifications()
+                    .then(() => {
+                        console.log("Notifications Stopped");
+                        return bleServer.disconnect();
+                    })
+                    .then(() => {
+                        console.log("Device Disconnected");
+                        bleStateContainer.innerHTML = "Device Disconnected";
+                        bleStateContainer.style.color = "#d13a30";
+
+                    })
+                    .catch(error => {
+                        console.log("An error occurred:", error);
+                    });
+            } else {
+                console.log("No characteristic found to disconnect.");
+            }
+        } else {// Server가 없거나 연결이 끊어졌다.
+            // Throw an error if Bluetooth is not connected
+            console.error("Bluetooth is not connected.");
+            window.alert("Bluetooth is not connected.")
+        }
+    }
+
+    function getDateTime() {
+        var currentdate = new Date();
+        var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
+        var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+        var year = currentdate.getFullYear();
+        var hours = ("00" + currentdate.getHours()).slice(-2);
+        var minutes = ("00" + currentdate.getMinutes()).slice(-2);
+        var seconds = ("00" + currentdate.getSeconds()).slice(-2);
+
+        var datetime = day + "/" + month + "/" + year + " at " + hours + ":" + minutes + ":" + seconds;
+        return datetime;
+    }
+
+
+</script>
+
+</html>
