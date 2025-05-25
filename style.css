@@ -4,7 +4,7 @@ html {
     text-align: center;
 }
 h1 {
-    font-size: 1.2rem; /*rem(root em) root font size의 1.8배 */
+    font-size: 1.8rem; /*rem(root em) root font size의 1.8배 */
     color: white;
     text-align: center;
 }
