@@ -1,11 +1,12 @@
 html {
     font-family: Arial, Helvetica, sans-serif;
     display: inline-block;
-    text-align: center;
+/*     text-align: center; */
 }
 h1 {
     font-size: 1.8rem; /*rem(root em) root font size의 1.8배 */
     color: white;
+    text-align: center;
 }
 .topnav {
     overflow: hidden;
@@ -27,7 +28,7 @@ body {
 }
 .card {
     background-color: white;
-    box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);
+    box-shadow: 1px 1px 1px 1px rgba(140,140,140,.5);
 }
 button {
     color: white;
