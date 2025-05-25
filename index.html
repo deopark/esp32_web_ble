@@ -30,43 +30,43 @@
 
     <div class="content">
         <!-- BLE 연결 관리----------------------------->
-        <div class="card-grid">
-            <div class="card">
-                <p>
-                    <button id="connectBleButton" class="connectButton">Connect to BLE Device</button>
-                    <button id="disconnectBleButton" class="disconnectButton">Disconnect BLE Device</button>
-                </p>
-                <!-- BLE 연결 상태표시 ---------------->
-                <p class="grey-label">BLE state: 
-                    <strong><span id="bleState" style="color:#d13a30;">Disconnected</span>
-                    </strong>
-                </p>
-            </div>
+        
+        <div class="card">
+            <p>
+                <button id="connectBleButton" class="connectButton">연     결</button>
+                <button id="disconnectBleButton" class="disconnectButton">연결 해제</button>
+            </p>
+            <!-- BLE 연결 상태표시 ---------------->
+            <p class="grey-label">State: 
+                <strong><span id="bleState" style="color:#d13a30;">Disconnected</span>
+                </strong>
+            </p>
         </div>
-
+        <hr>
         <!-- ESP32 기기 읽기 및 제어 ------------------------>
-        <div class="card-grid">
-                <!-- ESP32에서 SensorCharateristic에 쓴 count value 읽기 -->
-                <div class="card">
-                    <h2>Fetched Value</h2>
-                    <p class="reading"><span id="valueContainer">NaN</span></p>
-                    <p class="grey-label">Last reading: <span id="timestamp"></span></p>
-                </div>
-                
-                <div class="card">
-                <!-- ESP32 장치의 GPIO를 제어하기 위한 Button Control과 마지막 전송 값 -->
-                    <h2>Control GPIO 2</h2>
-                    <button id="onButton" class="onButton">ON</button>
-                    <button id="offButton" class="offButton">OFF</button>
-                    <p class="grey-label">Last value sent: <span id="valueSent"></span></p>
-                </div>
+        
+        <!-- ESP32에서 SensorCharateristic에 쓴 count value 읽기 -->
+        <div class="card">
+            <h2>Sensor Data</h2>
+            <p class="reading"><span id="valueContainer">NaN</span></p>
+            <p class="grey-label">Last reading: <span id="timestamp"></span></p>
         </div>
+        <hr>
+        <div class="card">
+        <!-- ESP32 장치의 GPIO를 제어하기 위한 Button Control과 마지막 전송 값 -->
+            <h2>Control GPIO</h2>
+            <button id="onButton" class="onButton">ON</button>
+            <button id="offButton" class="offButton">OFF</button>
+            <p class="reading">Last value sent: <span id="valueSent"></span></p>
+        </div>
+        <hr>
     </div> <!-- div class="content"-->
 
     <div class="footer">
     <!-- 광고 -->
-        <p><a href="https://randomnerdtutorials.com/">Created by RandomNerdTutorials.com</a></p>
-        <p><a href="https://RandomNerdTutorials.com/esp32-web-bluetooth/">Read the full project here.</a></p>
+        <p>
+            ref : <a href="https://RandomNerdTutorials.com/esp32-web-bluetooth/">here.</a>
+        </p>
     </div>
 
 </body>
@@ -95,7 +95,7 @@
     var bleServiceFound;
     var sensorCharacteristicFound;
 
-    // Connect Button (search for BLE Devices only if BLE is available)
+    // Connect Button
     connectButton.addEventListener('click', (event) => {
         if (isWebBluetoothEnabled()){
             connectToDevice();
@@ -109,12 +109,11 @@
     onButton.addEventListener('click', () => writeOnCharacteristic(1));
     offButton.addEventListener('click', () => writeOnCharacteristic(0));
 
-    // Check if BLE is available in your Browser
-    // navigatot.bluetooth: Web BLE가 활성화 되어 있는지
+    // Web Browser가 Web Bluetooth API를 지원하는지 check..
     function isWebBluetoothEnabled() {
         if (!navigator.bluetooth) {
             console.log("Web Bluetooth API is not available in this browser!");
-            bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
+            bleStateContainer.innerHTML = "Browser가 Web Bluetooth API를 지원하지 않습니다.";
             return false
         }
         console.log('Web Bluetooth API supported in this browser.');
@@ -133,8 +132,11 @@
         // 연결되면 HTML에 표시하고 연결이 끊어질 경우를 대비하여 EventListener를 추가한다.
         .then(device => {
             console.log('Device Selected:', device.name);
-            bleStateContainer.innerHTML = 'Connected to device ' + device.name;
+            bleStateContainer.innerHTML = 'Connected(' + device.name + ')';
             bleStateContainer.style.color = "#24af37";
+            updateConnectButtoneColor(true); // button color update
+
+            // 저절로 연결이 끊어질 경우 감지
             device.addEventListener('gattservicedisconnected', onDisconnected);
             return device.gatt.connect();
         })
@@ -167,6 +169,8 @@
         // Characteristic에서 읽은 값을 HTML에 표시
         .then(value => {
             console.log("Read value: ", value);
+
+            // ArrayBuffer 형식으로 전송받는다.
             const decodedValue = new TextDecoder().decode(value);
             console.log("Decoded value: ", decodedValue);
             retrievedValue.innerHTML = decodedValue;
@@ -176,23 +180,27 @@
         })
     }
 
-    function onDisconnected(event){
+    function onDisconnected(event){ // 자동으로 연결이 끊어졌다.
         console.log('Device Disconnected:', event.target.device.name);
         bleStateContainer.innerHTML = "Device disconnected";
         bleStateContainer.style.color = "#d13a30";
-
+        
+        // button color update
+        updateConnectButtoneColor(false); 
         connectToDevice();
     }
 
-    // Sensor Characteristic의 값이 변경되면 호출
+    // ESP32로 부터 전송된 값을 표시
     function handleCharacteristicChange(event){
+        // ArrayBuffer 형식으로 전송받는다.
         const newValueReceived = new TextDecoder().decode(event.target.value);
         console.log("Characteristic value changed: ", newValueReceived);
         retrievedValue.innerHTML = newValueReceived;
         timestampContainer.innerHTML = getDateTime();
     }
 
-    // ON / OFF Buttone에 의해 호출되는 함수
+    // ON, OFF Button click Callback 함수
+    // BLE로 data 전송
     function writeOnCharacteristic(value){
 
         if (bleServer && bleServer.connected) {
@@ -200,12 +208,15 @@
             // Characteristic에 기록
             .then(characteristic => {
                 console.log("Found the LED characteristic: ", characteristic.uuid);
+                // BLE에서는 Data를 ArrayBuffer 형식으로 보내야 한다.
                 const data = new Uint8Array([value]);
                 return characteristic.writeValue(data);
+  
             })
             // HTML에 표시
             .then(() => {
                 latestValueSent.innerHTML = value;
+                updateLedButtoneColor(value);
                 console.log("Value written to LEDcharacteristic:", value);
             })
             .catch(error => {
@@ -230,7 +241,7 @@
                         console.log("Device Disconnected");
                         bleStateContainer.innerHTML = "Device Disconnected";
                         bleStateContainer.style.color = "#d13a30";
-
+                        updateConnectButtoneColor(false); // button color update
                     })
                     .catch(error => {
                         console.log("An error occurred:", error);
@@ -254,11 +265,39 @@
         var minutes = ("00" + currentdate.getMinutes()).slice(-2);
         var seconds = ("00" + currentdate.getSeconds()).slice(-2);
 
-        var datetime = day + "/" + month + "/" + year + " at " + hours + ":" + minutes + ":" + seconds;
+        var datetime = year + "-" + month + "-" + day + " at " + hours + ":" + minutes + ":" + seconds;
         return datetime;
     }
 
+    function updateConnectButtoneColor(isConnected){
+        if(isConnected){
+            connectButton.style.backgroundColor = "#24af37";
+            connectButton.style.color = "#FFFFFF";
+            disconnectButton.style.backgroundColor = "#AAA5A5";
+            disconnectButton.style.color = "#000000";
 
+        }else{
+            disconnectButton.style.backgroundColor = "#d13a30";
+            disconnectButton.style.color = "#FFFFFF";
+            connectButton.style.backgroundColor = "#AAA5A5";
+            connectButton.style.color = "#000000";  
+        }
+    }
+
+    function updateLedButtoneColor(isConnected){
+        if(isConnected == 1){
+            onButton.style.backgroundColor = "#1b8a94";
+            onButton.style.color = "#FFFFFF";
+            offButton.style.backgroundColor = "#AAA5A5";
+            offButton.style.color = "#000000";
+
+        }else{
+            offButton.style.backgroundColor = "#1b8a94";
+            offButton.style.color = "#FFFFFF";
+            onButton.style.backgroundColor = "#AAA5A5";
+            onButton.style.color = "#000000";  
+        }
+    }
 </script>
 
 </html>
