@@ -7,13 +7,13 @@ html {
     font-weight: bold;
 }
 h1 {
-    font-size: 1.2rem; /*rem(root em) root font size의 1.8배 */
+    font-size: 1.1rem; /*rem(root em) root font size의 1.8배 */
     color: white;
     text-align: center;
 }
 .topnav {
     overflow: hidden;
-    background-color: #555555;
+    background-color: #9d3232;
 }
 body {
     margin: 0;
