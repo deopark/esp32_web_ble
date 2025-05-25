@@ -37,7 +37,7 @@ button {
     cursor: pointer;
     border-radius: 5px;
     font-weight: bold;
-    min-width: 120px;
+    min-width: 100px;
 }
 .onButton{
     background-color: #5f6c6d;
