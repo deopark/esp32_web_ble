@@ -20,7 +20,7 @@ body {
     padding: 50px;
 }
 .card-grid {
-/*     max-width: 800px; */
+    max-width: 800px;
     margin: 0 auto;
     margin-bottom: 30px;
 /*     display: grid; */
@@ -29,7 +29,7 @@ body {
 }
 .card {
     background-color: white;
-    box-shadow: 1px 1px 5px 1px rgba(140,140,140,.5);
+    box-shadow: 1px 1px 10px 1px rgba(140,140,140,.5);
 }
 button {
     color: white;
